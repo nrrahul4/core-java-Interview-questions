@@ -5,14 +5,14 @@
 | No   | Content                                                      |
 | ---- | ------------------------------------------------------------ |
 | 1    | [What is a String?](#1)                                      |
-| 2    | [Why String is immutable?](2)                                |
-| 3    | [Java String concat() Method](3)                             |
-| 4    | [Substring, length, indexOf and toCharArray in java](4)      |
-| 5    | [Why sensitive data not recommended to store in String?](5)  |
-| 6    | [`equals` vs `==` in java](6)                                |
-| 7    | [How String class works?](7)                                 |
-| 8    | [Difference between StringBuilder and StringBuffer?](8)      |
-| 9    | [what is `String.intern`? How does `String.intern()` work?](9) |
+| 2    | [Why String is immutable?](#2)                               |
+| 3    | [Java String concat() Method](#3)                            |
+| 4    | [Substring, length, indexOf and toCharArray in java](#4)     |
+| 5    | [Why sensitive data not recommended to store in String?](#5) |
+| 6    | [`equals` vs `==` in java](#6)                               |
+| 7    | [How String class works?](#7)                                |
+| 8    | [Difference between StringBuilder and StringBuffer?](#8)     |
+| 9    | [what is `String.intern`? How does `String.intern()` work?](#9) |
 | 10   | What are the performance implications of using `+` to concatenate Strings in loops? |
 | 11   | How does substring() work internally?                        |
 | 12   | How is String hashing implemented? Why is it cached?         |
