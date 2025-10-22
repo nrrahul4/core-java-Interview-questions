@@ -13,15 +13,15 @@
 | 7    | [How String class works?](#7)                                |
 | 8    | [Difference between StringBuilder and StringBuffer?](#8)     |
 | 9    | [what is `String.intern`? How does `String.intern()` work?](#9) |
-| 10   | What are the performance implications of using `+` to concatenate Strings in loops? |
-| 11   | How does substring() work internally?                        |
-| 12   | How is String hashing implemented? Why is it cached?         |
-| 13   | Can a String be modified using reflection?                   |
-| 14   | How does Java optimize string concatenation at compile time? |
-| 15   | Explain String deduplication in Java 8+?                     |
-| 16   | What is the difference between `isEmpty()` and `isBlank()` in Java? |
-| 17   | How to extract substring between two delimiters?             |
-| 18   | Remove duplicate characters from a string                    |
+| 10   | [What are the performance implications of using `+` to concatenate Strings in loops?](#10) |
+| 11   | [How does substring() work internally?](#11)                 |
+| 12   | [How is String hashing implemented? Why is it cached?](#12)  |
+| 13   | [Can a String be modified using reflection?](#13)            |
+| 14   | [How does Java optimize string concatenation at compile time?](#14) |
+| 15   | [Explain String deduplication in Java 8+?](#15)              |
+| 16   | [What is the difference between `isEmpty()` and `isBlank()` in Java?](#16) |
+| 17   | [How to extract substring between two delimiters?](#17)      |
+| 18   | [Remove duplicate characters from a string](#18)             |
 |      |                                                              |
 
 
@@ -350,3 +350,306 @@ public class InternExample {
 > Performance: *`intern()` involves a lookup in the pool — avoid using it excessively in performance-critical code.*
 >
 > Java Version: *From Java 7+, the string pool is moved to the **heap**, not the PermGen (which was limited).*
+
+
+
+<h3 id="10">10. What are the performance implications of using + to concatenate Strings in loops?</h3>
+
+In Java, **`String` is immutable**, meaning once a `String` object is created, it cannot be changed. When you use `+` to concatenate strings, you're creating **new `String` objects** every time.
+
+Example:
+
+```java
+String result = "";
+for (int i = 0; i < 1000; i++) {
+    result += "a";
+}
+```
+
+###### **Performance Impact**:
+
+- **Time complexity:** Becomes **O(n²)** due to repeated copying of the growing string.
+- **Memory usage:** Lots of temporary `String` objects are created and discarded, increasing garbage collection pressure.
+- **CPU cycles:** Wasted on repeated allocations and character copying.
+
+> The Solution: Use `StringBuilder` or `StringBuffer`
+
+
+
+<h3 id="11">11. How does substring() work internally?</h3>
+
+In Java, `substring(beginIndex, endIndex)` returns a new string that is a **subsequence** of the original string. The parameters are `beginIndex`: **the starting index** (inclusive), `endIndex`: **the ending index** (exclusive).
+
+```java
+String str = "Hello, world!";
+String sub = str.substring(7, 12); // returns "world"
+```
+
+###### Internal Mechanism in Java:
+
+***Before Java 7 Update 6***: Java `String` is **backed by a `char[]` array**. Originally, the `substring()` method **did not create a new array**. Instead, it created a **new String object that shared the same char array**, but with a different **offset** and **count**.
+
+```java
+// str → points to char[] {'H','e','l','l','o',',',' ','w','o','r','l','d','!'}
+String str = "Hello, world!";
+
+// sub → shares the same char[] but has:
+// offset = 7
+// count = 5 (because 12 - 7 = 5)
+String sub = str.substring(7, 12);
+```
+
+> ###### Benefits:
+>
+> - Fast and memory-efficient (no array copy)
+>
+> ###### Problems:
+>
+> - **Memory leak**: If you extract a small substring from a very large string, the entire original character array remains in memory because of shared reference.
+> - `str` can be garbage collected, but its huge `char[]` remains because `sub` references it.
+
+
+
+***In Java (Java 7 Update 6 and Later)***: Due to the memory leak issue, Java changed this behavior, `substring()` now creates a **new char array** and **copies** the relevant characters.
+
+```java
+public String substring(int beginIndex, int endIndex) {
+    // Validation omitted
+    int subLen = endIndex - beginIndex;
+    char[] subChars = new char[subLen];
+    System.arraycopy(value, beginIndex + offset, subChars, 0, subLen);
+    return new String(subChars);
+}
+```
+
+> ###### Benefits:
+>
+> - Avoids memory leaks
+> - Substrings are independent of the original string
+>
+> ###### Downsides:
+>
+> - **Less efficient** (extra memory and time to copy)
+> - Cannot "reuse" memory across substrings
+
+
+
+***From Java 9 onward***: Java uses **compact strings**:
+
+- `byte[]` instead of `char[]`
+- Single-byte encoding (ISO-8859-1) if possible
+- UTF-16 if needed
+- This is part of **JEP 254: Compact Strings**
+
+
+
+<h3 id="12">12. How is String hashing implemented? Why is it cached?</h3>
+
+Hashing is the process of converting a **string of characters** into a **fixed-size integer** value called a **hash code**. This **hash code** is used to determine the **bucket/index** in hash-based data structures.
+
+```java
+String str = "hello";
+int hash = str.hashCode(); // returns 99162322
+```
+
+***Why Hashing Matters***: In structures like `HashMap`, hash codes help in **quick lookup, insertion, and deletion**. Instead of comparing every string (which is `O(n)`), you hash it to an integer and only check for **collisions**. 
+
+> *So hashing makes these operations near `O(1)` time.*
+
+***Problem Without Caching:*** Strings are **immutable** — once created, they don’t change. But if you repeatedly call `hashCode()`, and it's recalculated every time, that would be **wasteful**, especially for long strings. If `s` is used as a key in a `HashMap`, and you perform thousands of lookups — this would mean repeating the same calculation over and over.
+
+***Solution - Cache the Hash Code***: Java internally **caches** the hash code **after computing it once**. The cached value is reused in future calls.
+
+> [!IMPORTANT]
+>
+> Only compute `hashCode()` once per string. Future calls return the cached value.
+>
+> Java (from Java 7+) uses **hash randomization** in **`HashMap` for non-String keys**, but not for Strings. String hash codes remain consistent across JVM runs.
+
+```java
+// Internally
+String s = "abc";
+s.hashCode(); // triggers computation
+s.hashCode(); // uses cached value
+```
+
+
+
+<h3 id="13">13. Can a String be modified using reflection?</h3>
+
+Yes, It is possible but not recommended.
+
+***Bypassing with Reflection (Pre-Java 9)***: 
+
+```java
+import java.lang.reflect.Field;
+
+public class HackString {
+    public static void main(String[] args) throws Exception {
+        String str = "Hello";
+        System.out.println("Before: " + str);
+
+        Field valueField = String.class.getDeclaredField("value");
+        valueField.setAccessible(true);
+        char[] value = (char[]) valueField.get(str); // Java 8, Previous
+      	// byte[] val = (byte[]) value.get(str); // Java 9+
+        value[0] = 'J';
+
+        System.out.println("After: " + str); // Output: "Jello"
+    }
+}
+```
+
+Here, The `value` field of `String` was accessed using reflection. The backing `char[]` was **mutated**, even though the `String` is marked as **final** and **immutable**. Since `String` is used everywhere, this can cause **horrific, unpredictable behavior** system-wide.
+
+> ***Imacts of this***: Breaks the **contract of immutability**, a fundamental assumption in Java. Can **corrupt** `HashMap` keys or other data structures that rely on the string not changing. The cached `hashCode` is **not updated**, so your string can have a new value with the **old hash**, leading to logic bugs and hard-to-trace errors. You can even affect other string literals (because of **string interning**).
+
+
+
+<h3 id="14">14. How does Java optimize string concatenation at compile time?</h3>
+
+Java applies **powerful compile-time and runtime optimizations** for **string concatenation**, aiming to make your code efficient **without you having to manage performance manually**.
+
+1. ***Compile-Time Optimization: Constant Folding:***
+
+If the Java compiler (`javac`) detects that you're concatenating **string literals** or **constants**, it will **evaluate them at compile time** and embed the result directly in the `.class` file.
+
+```java
+public class Test {
+    public static void main(String[] args) {
+        String a = "Hello, " + "world!";
+        System.out.println(a);
+    }
+}
+```
+
+`javac` sees that both `"Hello, "` and `"world!"` are **compile-time constants**
+
+It performs **constant folding**, replacing the code with:
+
+```java
+String a = "Hello, world!";
+```
+
+> No concatenation occurs at runtime
+>
+> This is **fully optimized** and **fast**
+
+
+
+2. ***What Happens at Runtime (When Compile-Time Is Not Possible):***
+
+When strings involve **variables**, Java **cannot concatenate at compile time**, so it uses **StringBuilder** under the hood to optimize performance.
+
+```java
+String name = "Alice";
+String greeting = "Hello, " + name + "!";
+// This will create lots of string objects unnecessarly
+
+
+// hence Java, converts this to
+String greeting = new StringBuilder()
+                     .append("Hello, ")
+                     .append(name)
+                     .append("!")
+                     .toString();
+```
+
+So the **concatenation is compiled into efficient bytecode** using `StringBuilder`.
+
+
+
+<h3 id="15">15. Explain String deduplication in Java 8+?</h3>
+
+**String deduplication** is a clever memory optimization introduced in **Java 8 (update 20 and later)** to reduce the memory footprint of `String` objects on the heap.
+
+> [!IMPORTANT]
+>
+> **String deduplication** is a feature in the **G1 garbage collector** (G1GC) introduced in **Java 8**.
+>  It automatically **identifies multiple distinct `String` objects that have the same content** and **reuses a single character backing array (`char[]`)** among them.
+
+Without deduplication, Each `String` has its own `char[]`, even if their contents are identical. With deduplication, Multiple `String` objects can **share** the same `char[]` data if they have identical characters.
+
+###### Internal Working:
+
+1. G1GC runs a garbage collection cycle.
+2. While examining live `String` objects in the heap:
+   - It checks if two or more strings have **identical content** (i.e., their `char[]` arrays are equal).
+3. If found:
+   - The GC **modifies the internal `value[]` field** of one string to **point to the already existing `char[]`** used by another.
+4. The GC frees the unused `char[]` arrays.
+
+
+
+<h3 id="16">16. What is the difference between isEmpty() and isBlank() in Java?</h3>
+
+| Feature                   | `isEmpty()`                           | `isBlank()`                                           |
+| ------------------------- | ------------------------------------- | ----------------------------------------------------- |
+| **Returns true if**       | String has **zero length**            | String is **empty \*or\* only contains whitespace**   |
+| **Whitespace characters** | Not ignored                           | Considered as blank                                   |
+| **Unicode whitespace**    | Not handled                           | Handles all Unicode whitespace (`\u2002`, `\t`, etc.) |
+| **Null safe?**            | Throws `NullPointerException` if null | Also throws `NullPointerException` if null            |
+| **Defined in**            | `java.lang.String` (since Java 6)     | `java.lang.String` (since Java 11)                    |
+
+
+
+<h3 id="17">17. How to extract substring between two delimiters?</h3>
+
+```java
+class Main {
+    public static void main(String[] args) {
+        String word = "i am [Rahul] NR";
+        String res = findValueBetween(word, "[", "]");
+        
+        System.out.println(res);
+    }
+    
+    private static String findValueBetween(String val, String dl1, String dl2) {
+        if(val == null || dl1 == null || dl2 == null) {
+            return null;
+        }
+        
+        int firstInd = val.indexOf(dl1) + dl1.length();
+        int secInd = val.indexOf(dl2);
+        
+        if(firstInd == -1 || secInd == -1) {
+            return null;
+        }
+        
+        return val.substring(firstInd, secInd);
+    }
+}
+```
+
+
+
+<h3 id="18">18. Remove duplicate characters from a string</h3>
+
+```java
+private static String removeDuplicates(String val) {
+    // Convert the input string to a character array for easy iteration
+    char[] valArr = val.toCharArray();
+
+    // Boolean array used to track if a character has already been seen
+    // 256 size supports extended ASCII (0-255)
+    boolean[] isPresent = new boolean[256];
+
+    // StringBuilder to efficiently build the result string without duplicates
+    StringBuilder sb = new StringBuilder();
+    
+    // Loop through each character in the array
+    for (char ev : valArr) {
+        // 'ev' is implicitly converted to its integer ASCII/Unicode value to index the array
+        // If this character has not been seen before, include it in result
+        if (!isPresent[ev]) {
+            sb.append(ev);         // Add character to result
+            isPresent[ev] = true;  // Mark this character as seen
+        }
+    }
+    
+    // Return the final string with duplicates removed
+    return sb.toString();
+}
+
+```
+
